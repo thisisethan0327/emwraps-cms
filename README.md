@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EMWRAPS CMS
 
-## Getting Started
+Headless CMS for [emwraps.net](https://emwraps.net) — built with **Payload CMS v3** + **Next.js** + **Supabase PostgreSQL**.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **CMS**: [Payload CMS v3](https://payloadcms.com/)
+- **Framework**: Next.js 16
+- **Database**: Supabase PostgreSQL (via `@payloadcms/db-postgres`)
+- **Storage**: Supabase Storage S3 (via `@payloadcms/storage-s3`)
+- **Rich Text**: Lexical Editor
+- **SEO**: `@payloadcms/plugin-seo`
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Collections
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Collection | Purpose |
+|------------|---------|
+| Posts | Blog articles |
+| Categories | Blog categories |
+| Media | Image/video uploads |
+| Projects | Portfolio/gallery items |
+| FAQs | FAQ items per service page |
+| Testimonials | Client reviews |
+| Users | CMS admin accounts |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup
 
-## Learn More
+1. Clone the repo
+2. Copy `.env.example` to `.env` and fill in your Supabase credentials
+3. Install dependencies: `npm install`
+4. Run dev server: `npm run dev`
+5. Visit `http://localhost:3000/admin` to create your first admin user
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See `.env.example` for all required variables. You need:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `DATABASE_URI` — Supabase Postgres connection string
+- `PAYLOAD_SECRET` — Random 32-char secret
+- `S3_*` — Supabase Storage S3 credentials
 
-## Deploy on Vercel
+## API Endpoints
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The frontend at `emwraps.net` fetches content from these REST endpoints:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GET /api/posts` — Blog posts
+- `GET /api/categories` — Blog categories
+- `GET /api/projects` — Portfolio projects
+- `GET /api/faqs` — FAQ items
+- `GET /api/testimonials` — Client testimonials
+- `GET /api/media` — Media files
+
+## Part of the EMWRAPS Ecosystem
+
+- **Frontend**: [emwraps-react](https://github.com/thisisethan0327/emwraps-react) — `emwraps.net`
+- **CMS**: This repo — `cms.emwraps.net`
+- **Ticket System**: Coming soon
