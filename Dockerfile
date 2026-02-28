@@ -12,16 +12,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build args for env vars needed at build time
-ARG PAYLOAD_SECRET
-ARG DATABASE_URI
-ARG NEXT_PUBLIC_SERVER_URL
-ARG CORS_ORIGINS
-
-ENV PAYLOAD_SECRET=${PAYLOAD_SECRET}
-ENV DATABASE_URI=${DATABASE_URI}
-ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
-ENV CORS_ORIGINS=${CORS_ORIGINS}
+# Environment variables are passed by Coolify at build time
+# (set them in Coolify → Environment Variables → check "Build Time")
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
