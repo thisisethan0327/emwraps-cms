@@ -11,12 +11,21 @@ type Args = {
     children: React.ReactNode
 }
 
+const serverFunction: typeof handleServerFunctions = async (args) => {
+    'use server'
+    return handleServerFunctions({
+        ...args,
+        config,
+        importMap,
+    })
+}
+
 export default async function Layout({ children }: Args) {
     return (
         <RootLayout
             config={config}
             importMap={importMap}
-            serverFunction={handleServerFunctions}
+            serverFunction={serverFunction}
         >
             {children}
         </RootLayout>

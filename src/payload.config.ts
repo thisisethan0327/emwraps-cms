@@ -46,7 +46,8 @@ export default buildConfig({
         pool: {
             connectionString: process.env.DATABASE_URI || '',
         },
-        push: false, // Use migrations in production
+        push: true, // Auto-create tables in dev (set to false for production with migrations)
+        schemaName: 'cms', // Isolate CMS tables from frontend's public schema
     }),
 
     // ── Rich Text Editor ──
