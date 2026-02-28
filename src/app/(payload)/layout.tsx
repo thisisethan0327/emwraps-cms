@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import config from '@payload-config'
 import { RootLayout, handleServerFunctions } from '@payloadcms/next/layouts'
+import type { ServerFunctionClient } from 'payload'
 import React from 'react'
 import { importMap } from './admin/importMap'
 import './custom.scss'
@@ -11,7 +12,7 @@ type Args = {
     children: React.ReactNode
 }
 
-const serverFunction: typeof handleServerFunctions = async (args) => {
+const serverFunction: ServerFunctionClient = async (args) => {
     'use server'
     return handleServerFunctions({
         ...args,
