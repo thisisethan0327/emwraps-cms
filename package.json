@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "NODE_OPTIONS='--max-old-space-size=1536' next build",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "generate:types": "payload generate:types",
     "generate:importmap": "payload generate:importmap",
