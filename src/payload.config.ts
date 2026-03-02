@@ -82,9 +82,33 @@ export default buildConfig({
         seoPlugin({
             collections: ['posts', 'projects', 'services'],
             uploadsCollection: 'media',
-            generateTitle: ({ doc }: any) => `${doc?.title || doc?.name || ''} — EMWRAPS`,
-            generateDescription: ({ doc }: any) => doc?.excerpt || doc?.shortDescription || '',
-            generateURL: ({ doc }: any) => `https://emwraps.net/${doc?.slug || ''}`,
+            tabbedUI: true,
+            generateTitle: ({ doc }: any) => {
+                const title = doc?.title || doc?.name || '';
+                return `${title} — EMWRAPS | Seattle Vehicle Wraps & PPF`;
+            },
+            generateDescription: ({ doc }: any) => {
+                const desc = doc?.excerpt || doc?.shortDescription || doc?.description || '';
+                // Limit to ~160 chars for optimal meta description
+                return desc.length > 160 ? desc.substring(0, 157) + '...' : desc;
+            },
+            generateURL: ({ doc, collectionSlug }: any) => {
+                const slug = doc?.slug || '';
+                switch (collectionSlug) {
+                    case 'posts':
+                        return `https://emwraps.net/blog/${slug}`;
+                    case 'projects':
+                        return `https://emwraps.net/portfolio/${slug}`;
+                    case 'services':
+                        return `https://emwraps.net/${slug}`;
+                    default:
+                        return `https://emwraps.net/${slug}`;
+                }
+            },
+            generateImage: ({ doc }: any) => {
+                // Use featured image for posts, first image for projects
+                return doc?.featuredImage || doc?.images?.[0]?.image || null;
+            },
         }),
 
         // S3 Storage: Supabase Storage (S3-compatible)
