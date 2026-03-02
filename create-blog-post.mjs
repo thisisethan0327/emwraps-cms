@@ -170,11 +170,9 @@ function bulletList(items) {
 
 function imageBlock(mediaDoc) {
     return {
-        type: 'block',
-        fields: {
-            blockType: 'mediaBlock',
-            media: mediaDoc.id,
-        },
+        type: 'upload',
+        relationTo: 'media',
+        value: mediaDoc.id,
         format: '',
         version: 2,
     };
