@@ -7,7 +7,7 @@ import sharp from 'sharp'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// Collections
+// Collections — Content
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Posts } from './collections/Posts'
@@ -15,6 +15,16 @@ import { Categories } from './collections/Categories'
 import { Projects } from './collections/Projects'
 import { FAQs } from './collections/FAQs'
 import { Testimonials } from './collections/Testimonials'
+
+// Collections — Business
+import { Services } from './collections/Services'
+import { Promotions } from './collections/Promotions'
+import { TeamMembers } from './collections/TeamMembers'
+
+// Globals
+import { SiteSettings } from './globals/SiteSettings'
+import { Homepage } from './globals/Homepage'
+import { Navigation } from './globals/Navigation'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -32,13 +42,26 @@ export default buildConfig({
 
     // ── Collections ──
     collections: [
+        // Admin
         Users,
+        // Content
         Media,
         Posts,
         Categories,
         Projects,
         FAQs,
         Testimonials,
+        // Business
+        Services,
+        Promotions,
+        TeamMembers,
+    ],
+
+    // ── Globals (site-wide settings) ──
+    globals: [
+        SiteSettings,
+        Homepage,
+        Navigation,
     ],
 
     // ── Database: Supabase PostgreSQL ──
@@ -55,13 +78,13 @@ export default buildConfig({
 
     // ── Plugins ──
     plugins: [
-        // SEO plugin for posts and projects
+        // SEO plugin for posts, projects, and services
         seoPlugin({
-            collections: ['posts', 'projects'],
+            collections: ['posts', 'projects', 'services'],
             uploadsCollection: 'media',
-            generateTitle: ({ doc }: any) => `${doc?.title || ''} — EMWRAPS Blog`,
-            generateDescription: ({ doc }: any) => doc?.excerpt || '',
-            generateURL: ({ doc }: any) => `https://emwraps.net/blog/${doc?.slug || ''}`,
+            generateTitle: ({ doc }: any) => `${doc?.title || doc?.name || ''} — EMWRAPS`,
+            generateDescription: ({ doc }: any) => doc?.excerpt || doc?.shortDescription || '',
+            generateURL: ({ doc }: any) => `https://emwraps.net/${doc?.slug || ''}`,
         }),
 
         // S3 Storage: Supabase Storage (S3-compatible)
@@ -100,6 +123,7 @@ export default buildConfig({
         process.env.CORS_ORIGINS || 'https://emwraps.net',
         'http://localhost:5173',
         'http://localhost:5174',
+        'http://tg844g8ws40w0kks04k0sow0.178.156.203.41.sslip.io',
     ],
 
     // ── Serverless URL ──

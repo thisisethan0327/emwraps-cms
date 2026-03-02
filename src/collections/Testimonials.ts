@@ -62,6 +62,37 @@ export const Testimonials: CollectionConfig = {
                 description: 'Show on homepage',
             },
         },
+        {
+            name: 'googleReviewUrl',
+            type: 'text',
+            admin: {
+                description: 'Link to the original Google review',
+            },
+        },
+        {
+            name: 'date',
+            type: 'date',
+            admin: {
+                date: { pickerAppearance: 'dayOnly' },
+                description: 'When the review was left',
+            },
+        },
+        {
+            name: 'vehicle',
+            type: 'text',
+            admin: {
+                description: 'Vehicle associated with this review (e.g., "2024 BMW M4")',
+            },
+        },
+        {
+            name: 'relatedProject',
+            type: 'relationship',
+            relationTo: 'projects',
+            hasMany: false,
+            admin: {
+                description: 'Link to portfolio project (if applicable)',
+            },
+        },
         // ── Customer reference (for future ticket system integration) ──
         {
             name: 'customerRef',

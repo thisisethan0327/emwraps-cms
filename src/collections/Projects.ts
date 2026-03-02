@@ -88,7 +88,24 @@ export const Projects: CollectionConfig = {
                 description: 'e.g., "Gloss", "Satin", "Matte", "Color PPF"',
             },
         },
-        // ── Images ──
+        // ── Before/After Comparison ──
+        {
+            name: 'beforeImage',
+            type: 'upload',
+            relationTo: 'media',
+            admin: {
+                description: 'Before photo for comparison slider',
+            },
+        },
+        {
+            name: 'afterImage',
+            type: 'upload',
+            relationTo: 'media',
+            admin: {
+                description: 'After photo for comparison slider',
+            },
+        },
+        // ── Gallery Images ──
         {
             name: 'images',
             type: 'array',
@@ -104,10 +121,26 @@ export const Projects: CollectionConfig = {
                     name: 'label',
                     type: 'text',
                     admin: {
-                        description: 'Optional label (e.g., "Before", "After", "Detail")',
+                        description: 'Optional label (e.g., "Detail", "Interior", "Side View")',
                     },
                 },
             ],
+        },
+        // ── Timeline ──
+        {
+            name: 'completedAt',
+            type: 'date',
+            admin: {
+                date: { pickerAppearance: 'dayOnly' },
+                description: 'When this project was completed',
+            },
+        },
+        {
+            name: 'estimatedDuration',
+            type: 'text',
+            admin: {
+                description: 'e.g., "2 days", "1 week", "3-4 hours"',
+            },
         },
         // ── Display options ──
         {
@@ -123,6 +156,14 @@ export const Projects: CollectionConfig = {
             type: 'number',
             admin: {
                 description: 'Display order (lower = shown first)',
+            },
+        },
+        {
+            name: 'highlightReel',
+            type: 'checkbox',
+            defaultValue: false,
+            admin: {
+                description: 'Feature in the homepage highlight reel',
             },
         },
         // ── Customer reference (for future ticket system integration) ──
