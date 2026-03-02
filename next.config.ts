@@ -15,20 +15,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // CORS headers for API routes
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: process.env.CORS_ORIGINS || 'https://emwraps.net' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-        ],
-      },
-    ]
-  },
+  // Note: CORS is handled by Payload's built-in `cors` config in payload.config.ts.
+  // Do NOT add custom Access-Control-Allow-Origin headers here as they
+  // will override Payload's multi-origin CORS support.
 }
 
 export default withPayload(nextConfig)
+
