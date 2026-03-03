@@ -1,2 +1,27 @@
 /* eslint-disable */
-// custom.scss - minimal overrides
+/* custom.scss - EMWRAPS CMS branding overrides */
+
+/* Hide the default Payload text logo/branding on login */
+.login__brand {
+    text-align: center;
+}
+
+/* Style the login logo container */
+.login__brand img {
+    border-radius: 8px;
+}
+
+/* Dark theme overrides to match EMWRAPS brand */
+:root {
+    --theme-elevation-0: #0a0a0a;
+    --theme-elevation-50: #111111;
+    --theme-elevation-100: #1a1a1a;
+    --theme-elevation-150: #222222;
+    --theme-elevation-200: #2a2a2a;
+    --theme-elevation-250: #333333;
+    --theme-elevation-300: #3a3a3a;
+    --theme-elevation-350: #444444;
+    --theme-success-500: #22c55e;
+    --theme-warning-500: #eab308;
+    --theme-error-500: #ef4444;
+}

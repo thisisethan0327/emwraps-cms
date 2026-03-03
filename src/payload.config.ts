@@ -35,9 +35,14 @@ export default buildConfig({
         user: Users.slug,
         meta: {
             titleSuffix: ' — EMWRAPS CMS',
-            icons: [{ url: '/favicon.ico' }],
+            icons: [{ url: '/favicon.png' }],
         },
-        components: {},
+        components: {
+            graphics: {
+                Logo: './src/components/admin/Logo.tsx',
+                Icon: './src/components/admin/Icon.tsx',
+            },
+        },
     },
 
     // ── Collections ──
@@ -144,9 +149,11 @@ export default buildConfig({
 
     // ── CORS ──
     cors: [
-        process.env.CORS_ORIGINS || 'https://emwraps.net',
+        ...(process.env.CORS_ORIGINS?.split(',').map(s => s.trim()) || ['https://emwraps.net']),
+        'https://tickets.emwraps.net',
         'http://localhost:5173',
         'http://localhost:5174',
+        'http://localhost:5176',
         'http://tg844g8ws40w0kks04k0sow0.178.156.203.41.sslip.io',
     ],
 
