@@ -166,13 +166,12 @@ export const Projects: CollectionConfig = {
                 description: 'Feature in the homepage highlight reel',
             },
         },
-        // ── Customer reference (for future ticket system integration) ──
+        // ── Customer reference (links to ticket system) ──
         {
             name: 'customerRef',
             type: 'text',
             admin: {
-                description: 'Supabase customer UUID (links to shared customers table — for future ticket system)',
-                condition: () => false, // Hidden for now, will be enabled in Phase 3
+                description: 'Supabase customer UUID — links to shared customers table in ticket system',
             },
         },
     ],
