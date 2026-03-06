@@ -12,7 +12,7 @@
 }
 
 /* Dark theme overrides to match EMWRAPS brand */
-:root {
+[data-theme="dark"] {
     --theme-elevation-0: #0a0a0a;
     --theme-elevation-50: #111111;
     --theme-elevation-100: #1a1a1a;
@@ -24,4 +24,19 @@
     --theme-success-500: #22c55e;
     --theme-warning-500: #eab308;
     --theme-error-500: #ef4444;
+}
+
+/* Light theme overrides to match EMWRAPS brand */
+[data-theme="light"] {
+    --theme-elevation-0: #ffffff;
+    --theme-elevation-50: #f9fafb;
+    --theme-elevation-100: #f3f4f6;
+    --theme-elevation-150: #e5e7eb;
+    --theme-elevation-200: #d1d5db;
+    --theme-elevation-250: #9ca3af;
+    --theme-elevation-300: #6b7280;
+    --theme-elevation-350: #4b5563;
+    --theme-success-500: #16a34a;
+    --theme-warning-500: #ca8a04;
+    --theme-error-500: #dc2626;
 }
