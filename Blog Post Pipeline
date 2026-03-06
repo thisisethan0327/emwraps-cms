@@ -1,0 +1,314 @@
+# EMWRAPS Blog Post Pipeline — How to Create & Publish
+
+> The complete guide to going from photos on your computer to a live blog post on emwraps.net.
+
+---
+
+## The Pipeline (Overview)
+
+```
+📸 Photos on your computer
+     ↓
+📤 Upload to CMS Media Library (stored in Supabase S3)
+     ↓
+📝 Create Blog Post in CMS (title, content, images, SEO)
+     ↓
+✅ Set status to "Published"
+     ↓
+🌐 Automatically appears on emwraps.net/blog
+```
+
+**That's it.** No code deploys needed. No git pushes. The website reads from the CMS API in real-time.
+
+---
+
+## Method 1: CMS Admin Panel (Recommended)
+
+### Step 1: Open the CMS Admin
+
+| Environment | URL |
+|-------------|-----|
+| **Production** | [https://cms.emwraps.net/admin](https://cms.emwraps.net/admin) |
+| **Local dev** | [http://localhost:3001/admin](http://localhost:3001/admin) |
+
+Login with your admin credentials.
+
+### Step 2: Upload Photos
+
+1. In the sidebar, click **Media**
+2. Click **Create New**
+3. Drag & drop your photo (or click to browse)
+4. Fill in the **Alt Text** — this is important for SEO
+   - Good: `Ferrari SF90 XX full body PPF — front three-quarter view`
+   - Bad: `IMG_4521`
+5. Click **Save**
+6. Repeat for each photo you want in the post
+
+> [!TIP]
+> **Image recommendations:**
+> - Format: JPG or PNG (JPG preferred for photos)
+> - Size: At least 1200px wide for hero images
+> - The CMS auto-generates resized versions (thumbnail, card, hero sizes)
+> - Alt text helps Google Images rank your photos
+
+### Step 3: Create the Blog Post
+
+1. In the sidebar, click **Posts**
+2. Click **Create New**
+3. Fill in the fields:
+
+#### Required Fields
+
+| Field | What to Enter | Example |
+|-------|--------------|---------|
+| **Title** | Post headline | `BMW M4 — Satin Black Full Body Wrap` |
+| **Slug** | URL-friendly version (auto-generates from title) | `bmw-m4-satin-black-full-body-wrap` |
+| **Featured Image** | Select from Media Library — this is the hero/card image | Pick your best shot |
+| **Content** | Rich text body (see below) | Write your article |
+| **Author** | Select your user | `EMW admin` |
+| **Status** | Set to `Published` when ready | `Published` |
+
+#### Recommended Fields
+
+| Field | What to Enter | Example |
+|-------|--------------|---------|
+| **Excerpt** | 1-2 sentence summary (shows on blog listing cards, max 300 chars) | `A stunning satin black wrap transformation on a BMW M4 Competition...` |
+| **Category** | Select from dropdown | `Project Spotlight` |
+| **Related Service** | Links post to a service page | `Vinyl Wraps` |
+| **Tags** | Add relevant keywords (one per row) | `BMW`, `M4`, `Satin Black`, `Full Wrap` |
+| **Published At** | Date to display | Pick today's date |
+
+### Step 4: Write the Content (Rich Text Editor)
+
+The content editor is Lexical-based. Here's how to structure a project spotlight post:
+
+#### Suggested Structure
+```
+[Opening paragraph — what the project is, why it's cool]
+
+## The Build
+[Details about the vehicle, what was done, materials used]
+
+[📸 INSERT IMAGE — click the image icon in toolbar, select from Media]
+
+## Why [Material/Service]?
+• Bullet point 1
+• Bullet point 2
+• Bullet point 3
+
+[📸 INSERT IMAGE]
+
+## The Result
+[Final thoughts, outcome description]
+
+[📸 INSERT IMAGE]
+
+## Ready to [Action]?
+[Call to action — contact info, phone number]
+```
+
+#### How to Insert Inline Images
+1. In the rich text editor, place your cursor where you want the image
+2. Click the **image/upload icon** in the toolbar (or type `/` to open the slash menu)
+3. Select **Upload** from the block menu
+4. Choose an image from your Media Library
+5. The image will appear inline in the content
+
+### Step 5: SEO Tab
+
+The SEO tab auto-generates from your post data, but you can override:
+
+| Field | Auto-Generated | Override If... |
+|-------|---------------|----------------|
+| **Meta Title** | `{Title} — EMWRAPS \| Seattle Vehicle Wraps & PPF` | You want a shorter/punchier title |
+| **Meta Description** | Uses your Excerpt (max 160 chars) | You want different text for Google |
+| **Meta Image** | Uses your Featured Image | You want a different OG card image |
+
+> [!TIP]
+> Click **Auto-generate** buttons in the SEO tab to populate these fields from your post data.
+
+### Step 6: Publish
+
+1. At the top of the editor, change `Draft` → click **Publish**
+2. Also set the **Status** field to `Published`
+3. Click **Save**
+
+> [!IMPORTANT]
+> **Both are needed:** Payload's built-in draft system (the Publish button at top) AND the custom Status field must both be set to Published. If the post doesn't appear on the website, check both.
+
+### Step 7: Verify
+
+Open your browser and go to:
+- **Blog listing:** [https://emwraps.net/blog](https://emwraps.net/blog)
+- **Your new post:** `https://emwraps.net/blog/{your-slug}`
+
+The post should appear immediately — no deploy needed.
+
+---
+
+## Method 2: Scripted (For Bulk or Automated Posts)
+
+For creating multiple posts at once, use the Node.js script approach.
+
+### Prerequisites
+- Node.js 22+ installed
+- CMS running locally (`npm run dev -- --port 3001` in emwraps-cms)
+
+### Script Template
+
+Save this as `create-post.mjs` in the `emwraps-cms` folder:
+
+```javascript
+import fs from 'fs';
+import path from 'path';
+
+const CMS_URL = 'http://localhost:3001';
+const CREDENTIALS = { email: 'admin@emwraps.net', password: 'YOUR_PASSWORD' };
+
+let TOKEN = '';
+
+// Login
+async function login() {
+    const res = await fetch(`${CMS_URL}/api/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(CREDENTIALS),
+    });
+    TOKEN = (await res.json()).token;
+    console.log('✅ Logged in');
+}
+
+// Upload an image file → returns media doc
+async function uploadImage(filePath, altText) {
+    const form = new FormData();
+    const blob = new Blob([fs.readFileSync(filePath)], { type: 'image/jpeg' });
+    form.append('file', blob, path.basename(filePath));
+    form.append('_payload', JSON.stringify({ alt: altText }));
+
+    const res = await fetch(`${CMS_URL}/api/media`, {
+        method: 'POST',
+        headers: { 'Authorization': `JWT ${TOKEN}` },
+        body: form,
+    });
+    const data = await res.json();
+    console.log(`📸 Uploaded: ${path.basename(filePath)} → ID: ${data.doc.id}`);
+    return data.doc;
+}
+
+// Lexical content helpers
+const paragraph = (text) => ({
+    type: 'paragraph',
+    children: [{ type: 'text', text, format: 0, mode: 'normal', version: 1 }],
+    direction: 'ltr', format: '', indent: 0, version: 1,
+});
+
+const heading = (text, tag = 'h2') => ({
+    type: 'heading', tag,
+    children: [{ type: 'text', text, format: 0, mode: 'normal', version: 1 }],
+    direction: 'ltr', format: '', indent: 0, version: 1,
+});
+
+const uploadNode = (mediaId) => ({
+    type: 'upload', relationTo: 'media', value: mediaId, format: '', version: 2,
+});
+
+// ── CREATE YOUR POST ──
+async function main() {
+    await login();
+
+    // 1. Upload images
+    const hero = await uploadImage('path/to/hero-image.jpg', 'BMW M4 satin black wrap — front view');
+    const img2 = await uploadImage('path/to/detail.jpg', 'BMW M4 wrap — door panel detail');
+
+    // 2. Get category ID
+    const catRes = await fetch(`${CMS_URL}/api/categories?where[slug][equals]=project-spotlight`, {
+        headers: { 'Authorization': `JWT ${TOKEN}` },
+    });
+    const categoryId = (await catRes.json()).docs[0]?.id;
+
+    // 3. Create the post
+    const res = await fetch(`${CMS_URL}/api/posts`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `JWT ${TOKEN}`,
+        },
+        body: JSON.stringify({
+            title: 'BMW M4 — Satin Black Full Body Wrap',
+            slug: 'bmw-m4-satin-black-full-body-wrap',
+            excerpt: 'A stunning satin black vinyl wrap on a BMW M4 Competition. Full body coverage with 3M 2080 series.',
+            status: 'published',
+            _status: 'published',
+            publishedAt: new Date().toISOString(),
+            category: categoryId,
+            relatedService: 'vinyl',
+            author: 1,
+            featuredImage: hero.id,
+            tags: [{ tag: 'BMW' }, { tag: 'M4' }, { tag: 'Satin Black' }, { tag: 'Full Wrap' }],
+            content: {
+                root: {
+                    type: 'root',
+                    children: [
+                        paragraph('This BMW M4 Competition received a full body wrap in 3M 2080 Satin Black...'),
+                        heading('The Build'),
+                        paragraph('Details about the build...'),
+                        uploadNode(hero.id),
+                        heading('The Result'),
+                        paragraph('The final result is stunning...'),
+                        uploadNode(img2.id),
+                    ],
+                    direction: 'ltr', format: '', indent: 0, version: 1,
+                },
+            },
+        }),
+    });
+
+    const post = await res.json();
+    console.log(`\n✅ Post created: "${post.doc.title}"`);
+    console.log(`🔗 View at: http://localhost:5173/blog/${post.doc.slug}`);
+}
+
+main().catch(console.error);
+```
+
+### Run It
+```bash
+cd emwraps-cms
+node create-post.mjs
+```
+
+---
+
+## Quick Reference: Blog Categories
+
+| Category | Slug | Use For |
+|----------|------|---------|
+| Project Spotlight | `project-spotlight` | Vehicle build showcases |
+| Tips & Guides | `tips-guides` | How-to articles, care guides |
+| Industry News | `industry-news` | New products, industry updates |
+| Behind the Scenes | `behind-the-scenes` | Shop life, team, process stories |
+| Customer Stories | `customer-stories` | Customer testimonials, reviews |
+
+## Quick Reference: Related Services
+
+| Service | Value | Links To |
+|---------|-------|----------|
+| Vinyl Wraps | `vinyl` | /vinyl page |
+| PPF | `ppf` | /ppf page |
+| Itasha | `itasha` | /itasha page |
+| Fleet Wraps | `fleet` | /fleet page |
+| Ceramic Coating | `ceramic` | /ceramic page |
+| Aftermarket | `aftermarket` | /aftermarket page |
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Post doesn't appear on website | Draft mode or `status` not set | Set both `Publish` button AND `Status` field to Published |
+| Images broken on website | CMS `NEXT_PUBLIC_SERVER_URL` wrong | Must be `https://cms.emwraps.net` in production |
+| Images broken locally | CMS running on wrong port | Run CMS on port 3001: `npm run dev -- --port 3001` |
+| SEO fields empty | Not auto-generated | Click "Auto-generate" buttons in the SEO tab |
+| Post shows wrong date | `publishedAt` not set | Set the Published At date field |
+| CMS admin error about `block` type | Old Lexical format | Use `upload` type nodes, not `block` type for images |

@@ -57,7 +57,12 @@ export const SiteSettings: GlobalConfig = {
                 {
                     name: 'email',
                     type: 'text',
-                    defaultValue: 'emwraps.net@gmail.com',
+                    defaultValue: 'info@emwraps.net',
+                },
+                {
+                    name: 'quoteEmail',
+                    type: 'text',
+                    defaultValue: 'quote@emwraps.net',
                 },
                 {
                     name: 'googleMapsUrl',

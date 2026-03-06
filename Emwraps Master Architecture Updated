@@ -1,0 +1,513 @@
+# EMWRAPS — Master Architecture & Build Plan
+
+> [!IMPORTANT]
+> **This is the single source of truth for the entire EMWRAPS ecosystem.** Reference this document at the start of every conversation about EMWRAPS projects. Last updated: **2026-03-02 10:14 PM PST**.
+
+---
+
+## System Overview
+
+EMWRAPS is a vehicle wrap shop in Seattle, WA. The tech ecosystem consists of **3 apps** sharing a **single Supabase backend**:
+
+```mermaid
+graph TB
+    subgraph "Frontend"
+        A["EMWRAPS Frontend<br/>Vite + React<br/>emwraps.net"]
+    end
+    subgraph "CMS"
+        B["Payload CMS<br/>Next.js<br/>cms.emwraps.net"]
+    end
+    subgraph "Ticket System"
+        C["Ticket System<br/>Vite + React 19<br/>tickets.emwraps.net"]
+    end
+    subgraph "Supabase (Central Hub)"
+        D[("PostgreSQL")]
+        E["Auth"]
+        F["Storage"]
+        G["Realtime"]
+        H["Edge Functions"]
+    end
+    
+    A --> D
+    A --> E
+    A --> F
+    A --> B
+    B --> D
+    B --> F
+    C --> D
+    C --> E
+    C --> F
+    C --> G
+```
+
+---
+
+## Repositories
+
+| Repo | GitHub | Stack | Deploy URL | Coolify Status |
+|------|--------|-------|------------|----------------|
+| **Frontend** | `thisisethan0327/emwraps-react` | Vite + React 19 | `emwraps.net` | ✅ Deployed |
+| **Payload CMS** | `thisisethan0327/emwraps-cms` | Next.js + Payload v3 | `cms.emwraps.net` | ✅ Deployed |
+| **Ticket System** | `thisisethan0327/emwraps-tickets` | Vite + React 19 + Zustand | `tickets.emwraps.net` | 📋 Pending Deploy |
+
+> [!NOTE]
+> CMS is currently deployed to Coolify at: `http://tg844g8ws40w0kks04k0sow0.178.156.203.41.sslip.io/admin`
+> Admin login: `admin@emwraps.net` / `@Emem98134`
+
+---
+
+## Supabase Configuration
+
+| Setting | Value |
+|---------|-------|
+| **Project Name** | `EMW-Site` |
+| **Project Ref** | `sbbxsqvoxrzcgtslspbo` |
+| **Region** | `us-west-2` |
+| **Project URL** | `https://sbbxsqvoxrzcgtslspbo.supabase.co` |
+| **DB Host (session pooler)** | `aws-0-us-west-2.pooler.supabase.com:5432` |
+| **DB Host (transaction pooler)** | `aws-0-us-west-2.pooler.supabase.com:6543` |
+| **Storage Bucket (images)** | `emwraps-images` |
+| **Storage Bucket (CMS)** | `cms-media` ✅ Created, S3 keys configured |
+
+> [!WARNING]
+> Payload CMS uses the **session pooler (port 5432)** — NOT the transaction pooler (port 6543). Transaction pooling doesn't support DDL operations needed for push mode.
+> CMS tables are isolated in the `cms` Postgres schema to avoid conflicts with frontend tables in `public`.
+
+---
+
+## Shared Database Schema
+
+### Core Shared Tables (used by ALL apps)
+
+```sql
+-- ══════════════════════════════════════════
+-- CUSTOMERS — Single source of truth
+-- ══════════════════════════════════════════
+CREATE TABLE customers (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_id     UUID REFERENCES auth.users(id),
+    email       TEXT UNIQUE NOT NULL,
+    phone       TEXT,
+    first_name  TEXT,
+    last_name   TEXT,
+    company     TEXT,
+    source      TEXT,  -- 'website', 'phone', 'referral', 'walk-in'
+    notes       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- ══════════════════════════════════════════
+-- VEHICLES — Linked to customers
+-- ══════════════════════════════════════════
+CREATE TABLE vehicles (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+    year        INT,
+    make        TEXT,
+    model       TEXT,
+    color       TEXT,
+    vin         TEXT,
+    license     TEXT,
+    notes       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Payload CMS Tables (in `cms` schema — DO NOT EDIT DIRECTLY)
+
+Payload auto-generates these tables in the **`cms`** Postgres schema via push mode:
+- `cms.posts`, `cms.posts_tags`, `cms._posts_v` (blog posts + versions)
+- `cms.categories` (blog categories)
+- `cms.media` (uploaded files)
+- `cms.projects`, `cms.projects_images` (portfolio/gallery)
+- `cms.faqs` (FAQ items per page)
+- `cms.testimonials` (client reviews)
+- `cms.users`, `cms.users_sessions` (CMS admin users — separate from Supabase Auth)
+- `cms.payload_preferences`, `cms.payload_preferences_rels`, `cms.payload_migrations` (internal)
+- `cms.payload_locked_documents`, `cms.payload_locked_documents_rels`, `cms.payload_kv` (internal)
+- `cms.services` (service definitions with pricing tiers, process steps, brands)
+- `cms.promotions` (seasonal deals, discount codes, promotional banners)
+- `cms.team_members` (staff profiles, certifications, specialties)
+- `cms.site_settings`, `cms.homepage`, `cms.navigation` (globals — site-wide settings)
+
+### Ticket System Tables (in `public` schema) ✅ CREATED
+
+> Migration: `emwraps-tickets/supabase/migrations/001_create_all_tables.sql`
+> Includes: auto-profile trigger, RLS policies, indexes, service catalog seed
+
+| Table | Columns | Purpose |
+|-------|---------|--------|
+| `profiles` | id→auth.users, first_name, last_name, email, phone, position, role, specialties[], hourly_rate, status, avatar_url | Staff profiles |
+| `customers` | id, auth_id, name, email, phone, first_name, last_name, company, customer_type, source, status, notes | Customer records |
+| `vehicles` | id, customer_id→customers, year, make, model, trim, color, vin, license_plate, notes | Customer vehicles |
+| `tickets` | id, ticket_id, customer_id→customers, vehicle_id→vehicles, customer_name, email, phone, car_*, services JSONB, service_day, end_date, notes, status, total_price | Core ticket data |
+| `ticket_workers` | id, ticket_id→tickets, worker_id→profiles, role, notes, assigned_at, assigned_by | Worker assignments |
+| `ticket_materials` | id, ticket_id→tickets, serial_number_id→serial_numbers, quantity_used, applied_area, warranty JSONB | Materials used |
+| `bookings` | id, name, email, phone, service, preferred_date, vehicle_year/make/model, message, sms_consent, status | Frontend bookings |
+| `products` | id, brand, model_sku, item_type, finish, color, description, cost_per_unit | Product catalog |
+| `serial_numbers` | id, product_id→products, serial_number, item_type, brand, model_sku, color, width, length_remaining, quantity, status, location, notes | Inventory tracking |
+| `service_structure` | id, name, structure JSONB | Service tree (seeded) |
+
+**Auth Trigger**: `on_auth_user_created` → auto-creates `profiles` row for new auth users
+**RLS**: All tables have RLS enabled. Authenticated users get full access. `bookings` and `service_structure` are public read.
+
+---
+
+## App 1: EMWRAPS Frontend (emwraps-react)
+
+### Tech Stack
+- **Framework**: Vite + React 19
+- **Styling**: Vanilla CSS (dark sci-fi HUD design system)
+- **Routing**: React Router v7
+- **3D/Animation**: Three.js, GSAP
+- **Database**: Supabase (client SDK)
+- **CMS**: Payload CMS REST API (via `src/lib/cms.js`)
+- **Deployment**: Coolify (Nixpacks)
+
+### Pages & SEO Status
+| Page | Route | SEO | FAQ Schema | FAQ Source | Service Schema |
+|------|-------|-----|------------|------------|----------------|
+| Home | `/` | ✅ | — | — | — |
+| Vinyl Wraps | `/vinyl` | ✅ | ✅ (5 items) | CMS ✅ | ✅ |
+| PPF | `/ppf` | ✅ | ✅ (5 items) | CMS ✅ | ✅ |
+| Itasha | `/itasha` | ✅ | ✅ (4 items) | CMS ✅ | ✅ |
+| Fleet | `/fleet` | ✅ | ✅ (5 items) | CMS ✅ | ✅ |
+| Ceramic | `/ceramic` | ✅ | ✅ (4 items) | CMS ✅ | ✅ |
+| Aftermarket | `/aftermarket` | ✅ | ✅ (4 items) | CMS ✅ | ✅ |
+| Contact | `/contact` | ✅ | — | — | — |
+| Booking | `/booking` | ✅ | — | — | — |
+| Privacy | `/privacy` | ✅ | — | — | — |
+| Terms | `/terms` | ✅ | — | — | — |
+| Blog | `/blog` | ✅ | — | — | — |
+| Blog Post | `/blog/:slug` | ✅ | — | — | — |
+
+### Key Files
+- [src/components/SEOHead.jsx](file:///c:/Users/Ethanc/Documents/emwraps-react/src/components/SEOHead.jsx) — Per-page SEO (direct DOM injection)
+- [src/lib/supabase.js](file:///c:/Users/Ethanc/Documents/emwraps-react/src/lib/supabase.js) — Supabase client
+- [src/lib/cms.js](file:///c:/Users/Ethanc/Documents/emwraps-react/src/lib/cms.js) — CMS API client (Payload REST API with 5-min cache)
+- [src/components/FAQ.jsx](file:///c:/Users/Ethanc/Documents/emwraps-react/src/components/FAQ.jsx) — FAQ accordion (CMS-connected with fallback)
+- [src/components/ServicePage.jsx](file:///c:/Users/Ethanc/Documents/emwraps-react/src/components/ServicePage.jsx) — Reusable service page template
+- [src/pages/Blog.jsx](file:///c:/Users/Ethanc/Documents/emwraps-react/src/pages/Blog.jsx) — Blog listing page with category filters
+- [src/pages/BlogPost.jsx](file:///c:/Users/Ethanc/Documents/emwraps-react/src/pages/BlogPost.jsx) — Blog post detail with Lexical rich text
+- [public/sitemap.xml](file:///c:/Users/Ethanc/Documents/emwraps-react/public/sitemap.xml) — XML sitemap
+- [public/robots.txt](file:///c:/Users/Ethanc/Documents/emwraps-react/public/robots.txt) — Robots file
+- [.npmrc](file:///c:/Users/Ethanc/Documents/emwraps-cms/.npmrc) — `legacy-peer-deps=true` for build compatibility
+
+### Important Gotchas
+- ⚠️ `react-helmet-async` was REMOVED — incompatible with React 19
+- ⚠️ SEOHead uses `useEffect` for direct DOM manipulation
+- ⚠️ [.npmrc](file:///c:/Users/Ethanc/Documents/emwraps-cms/.npmrc) with `legacy-peer-deps=true` is REQUIRED for Coolify deploys
+- ⚠️ `.env` contains `VITE_CMS_URL` — set to `http://localhost:3001` for dev, must be updated for production
+- ⚠️ FAQ component uses `page` prop to fetch from CMS; if CMS is unreachable, falls back to hardcoded `items` prop
+
+---
+
+## App 2: Payload CMS (emwraps-cms)
+
+### Tech Stack
+- **Framework**: Next.js 16.1.6 + Payload CMS v3.78
+- **Node.js**: v22 LTS (REQUIRED — v20 has ESM issues, v24 has breaking changes)
+- **Database**: `@payloadcms/db-postgres` → Supabase Postgres (session pooler, `cms` schema)
+- **Storage**: `@payloadcms/storage-s3` → Supabase Storage S3 ✅ Verified working
+- **Rich Text**: `@payloadcms/richtext-lexical`
+- **Auth**: Payload's built-in auth (CMS admins only)
+- **CORS**: Handled natively by Payload's `cors` config array (NOT Next.js custom headers)
+- **Deployment**: Coolify → `cms.emwraps.net`
+
+### Collections
+
+| Collection | Purpose | API Endpoint |
+|------------|---------|--------------|
+| `posts` | Blog articles | `/api/posts` |
+| `categories` | Blog categories | `/api/categories` |
+| `media` | Image/video uploads | `/api/media` |
+| `projects` | Portfolio gallery items | `/api/projects` |
+| `faqs` | FAQ items (per page) | `/api/faqs` |
+| `testimonials` | Client reviews | `/api/testimonials` |
+| `services` | Service definitions with pricing tiers | `/api/services` |
+| `promotions` | Seasonal deals & discount codes | `/api/promotions` |
+| `team-members` | Staff profiles & certifications | `/api/team-members` |
+| `users` | CMS admin accounts | (internal) |
+
+### Globals
+
+| Global | Purpose | API Endpoint |
+|--------|---------|--------------|
+| `site-settings` | Business info, hours, social links, reviews | `/api/globals/site-settings` |
+| `homepage` | Hero content, stats, featured sections | `/api/globals/homepage` |
+| `navigation` | Main nav & footer nav menus | `/api/globals/navigation` |
+
+### Environment Variables Required
+```
+PAYLOAD_SECRET=            # Random 32-char string
+DATABASE_URI=              # Supabase Postgres connection string
+S3_ENDPOINT=               # https://[ref].supabase.co/storage/v1/s3
+S3_ACCESS_KEY_ID=          # From Supabase S3 settings
+S3_SECRET_ACCESS_KEY=      # From Supabase S3 settings
+S3_BUCKET=                 # cms-media
+S3_REGION=                 # e.g. us-west-2
+NEXT_PUBLIC_SERVER_URL=    # https://cms.emwraps.net
+CORS_ORIGINS=              # https://emwraps.net
+```
+
+### Frontend Integration Points
+The Vite frontend fetches from Payload's REST API via [cms.js](file:///c:/Users/Ethanc/Documents/emwraps-react/src/lib/cms.js):
+- `cms.posts.getAll()` — Blog listing
+- `cms.posts.getBySlug('xyz')` — Single post
+- `cms.faqs.getByPage('ppf')` — Page-specific FAQs ✅ Connected
+- `cms.projects.getFeatured()` — Featured gallery
+- `cms.globals.getSiteSettings()` — Business info
+- `cms.globals.getHomepage()` — Homepage content
+- `cms.promotions.getActive()` — Active deals
+- `cms.team.getAll()` — Team members
+- `cms.testimonials.getFeatured()` — Featured testimonials
+- `cms.services.getAll()` — All active services
+
+---
+
+## App 3: EMWRAPS Tickets (emwraps-tickets) ✅ BUILT
+
+### Tech Stack
+- **Framework**: Vite + React 19
+- **Styling**: Vanilla CSS (dark sci-fi HUD design system — matches emwraps-react)
+- **Routing**: React Router v7 (`react-router-dom`)
+- **State Management**: Zustand
+- **Database**: Supabase (client SDK — same project as frontend & CMS)
+- **Auth**: Supabase Auth (email/password, role-based RBAC)
+- **Realtime**: Supabase Realtime (live ticket updates + toast notifications)
+- **Deployment**: Coolify → `tickets.emwraps.net`
+
+### Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Dashboard | `/` | Stats overview, today's tickets, activity feed |
+| Ticket List | `/tickets` | Filterable list with card/table views |
+| Ticket Create | `/tickets/new` | Multi-step form with service tree selector |
+| Ticket Detail | `/tickets/:id` | Full ticket view with services, materials, workers, print |
+| Customer List | `/customers` | Searchable customer directory |
+| Customer Detail | `/customers/:id` | Profile with vehicles & ticket history |
+| Inventory | `/inventory` | Products, serial numbers, stock levels |
+| Workers | `/workers` | Team overview with status selectors |
+| Schedule | `/schedule` | Calendar view with day detail sidebar |
+| Settings | `/settings` | Account info, service catalog (read-only), about |
+| Login | `/login` | Email/password auth |
+
+### Auth Model ✅ IMPLEMENTED
+
+- **Roles**: `admin`, `manager`, `worker`, `staff`, `front_desk`
+
+| Role | Access Level |
+|------|-------------|
+| **Admin** | Full access to all features, including user management |
+| **Manager** | All except user management (`users.manage`) |
+| **Front Desk** | Create tickets/customers, view all, process payments |
+| **Worker** | View own assigned tickets, update status, upload photos |
+| **Staff** | View-only access to tickets, customers, workers |
+
+**Permission Matrix**: `src/lib/permissions.js` — 21 permission keys across 8 domains (tickets, customers, vehicles, inspections, inventory, workers, payments, settings)
+
+**Enforcement Layers**:
+- **Route-level**: `RoleGuard` component wraps each route in `App.jsx` — redirects to dashboard if unauthorized
+- **UI-level**: `PermissionGate` component hides buttons/actions (e.g. Edit, Delete) from unauthorized roles
+- **Sidebar**: Nav items filtered by permission — workers only see Dashboard + Tickets
+- **Header**: Role label displayed next to user name with `ROLE_LABELS` mapping
+
+### Key Design Decisions
+- **UI/UX matches emwraps-react**: Same dark sci-fi HUD design system (amber/gold accent, Outfit font, glassmorphism)
+- **Sidebar layout**: Collapsible sidebar for admin navigation
+- **Service data**: CMS first → Supabase `service_structure` fallback → hardcoded fallback
+- **CMS integration**: `src/lib/cms.js` fetches services from Payload CMS REST API
+- **Same Supabase backend**: Shared auth/tables/RLS with frontend
+- **Component size rule**: No single file exceeds 300 lines
+
+### Key Files
+- `src/lib/supabase.js` — Supabase client (shared project)
+- `src/lib/cms.js` — CMS API client (services from Payload)
+- `src/lib/permissions.js` — RBAC permission matrix (5 roles, 21 permissions)
+- `src/stores/ticketStore.js` — Ticket CRUD with customer/vehicle find-or-create
+- `src/stores/serviceStore.js` — Service tree (CMS → Supabase → fallback cascade)
+- `src/stores/workerStore.js` — Worker profiles from `profiles` table
+- `src/stores/inventoryStore.js` — Serial numbers / products CRUD
+- `src/hooks/useAuth.js` — Auth session + profile with permissions
+- `src/hooks/usePermissions.js` — `can()`, `canAny()`, `canAll()` permission checks
+- `src/hooks/useRealtime.js` — Supabase Realtime subscription hook
+- `src/components/auth/RoleGuard.jsx` — Route-level permission enforcement
+- `src/components/auth/PermissionGate.jsx` — UI-level permission gate
+- `src/components/PrintInvoice.jsx` — Professional invoice/work order print
+- `supabase/migrations/001_create_all_tables.sql` — Full DB schema + seed
+
+### Environment Variables
+```
+VITE_SUPABASE_URL=https://sbbxsqvoxrzcgtslspbo.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+VITE_CMS_URL=https://cms.emwraps.net
+```
+
+---
+
+## Auth Strategy (Cross-App)
+
+| User Type | Auth Provider | Apps |
+|-----------|--------------|------|
+| **CMS Editors** | Payload built-in auth | Payload CMS admin only |
+| **Staff/Admin** | Supabase Auth | Ticket System, Frontend admin |
+| **Customers** | Supabase Auth | Frontend portal, Ticket portal |
+
+---
+
+## Deployment Architecture (Coolify)
+
+```
+Coolify Server
+├── emwraps-react     → emwraps.net        (Nixpacks, static SPA)        ✅
+├── emwraps-cms       → cms.emwraps.net    (Docker, Next.js standalone)  ✅
+└── emwraps-tickets   → tickets.emwraps.net (Nixpacks, static SPA)       📋 Pending
+
+External Services:
+├── Supabase          → Database, Auth, Storage, Realtime
+├── GitHub            → Source repos (thisisethan0327)
+└── DNS               → Managed via domain registrar
+```
+
+---
+
+## Build Phases & Roadmap
+
+### ✅ Phase 1: Frontend (COMPLETE)
+- [x] React migration from static HTML
+- [x] All service pages with showcases, FAQs
+- [x] Contact, Booking, Privacy, Terms pages
+- [x] Navigation with scroll-spy
+- [x] Gallery & VIP see-more functionality
+- [x] SEO & GEO optimization (all pages)
+- [x] Deployed on Coolify
+
+### ✅ Phase 2: Payload CMS (COMPLETE)
+- [x] Create `emwraps-cms` repo
+- [x] Scaffold Payload CMS with postgres adapter
+- [x] Define collections (posts, categories, media, projects, faqs, testimonials)
+- [x] Set up CORS for emwraps.net
+- [x] Configure S3 storage adapter for Supabase Storage
+- [x] Add SEO plugin for blog posts
+- [x] Fill in Supabase credentials
+- [x] Create `cms-media` bucket in Supabase Storage
+- [x] Connect to Supabase Postgres (session pooler, `cms` schema)
+- [x] Auto-create all database tables via push mode
+- [x] Create first admin user
+- [x] Upgrade Node.js to v22 (via NVM for Windows)
+- [x] Production build passing ✅
+- [x] Deploy to Coolify ✅
+- [x] Add Services collection (pricing tiers, process steps, brands)
+- [x] Add Promotions collection (seasonal deals, discount codes)
+- [x] Add TeamMembers collection (staff profiles, certifications)
+- [x] Add Globals: SiteSettings, Homepage, Navigation
+- [x] Enhance Projects with before/after images, timeline
+- [x] Enhance Testimonials with Google review link, vehicle, date
+- [x] Create CMS API client (`src/lib/cms.js`) in frontend
+- [x] Build blog pages (`/blog`, `/blog/:slug`) with Lexical rich text rendering
+- [x] Blog CSS styles matching dark sci-fi HUD design
+
+### 🔨 Phase 2.5: CMS Integration (COMPLETE ✅)
+- [x] Fill in S3 access keys ✅ (verified — media upload works)
+- [x] Push updated collections to Coolify (git push → auto-deploy) ✅
+- [x] Fix CORS — removed Next.js custom headers, Payload handles natively ✅
+- [x] Seed CMS: 30 FAQs (all 6 service pages + general) ✅
+- [x] Seed CMS: 5 blog categories (Project Spotlight, Tips & Guides, Industry News, Behind the Scenes, Customer Stories) ✅
+- [x] Seed CMS: 6 services with pricing tiers, process steps, benefits ✅
+- [x] Seed CMS: 6 testimonials with ratings, vehicles, service types ✅
+- [x] Seed SiteSettings global (business info, hours, social, reviews) ✅
+- [x] Seed Homepage global (hero, stats, CTA, showcase) ✅
+- [x] Connect FAQ component to CMS with graceful fallback ✅
+- [x] Connect Testimonials component to CMS with graceful fallback ✅
+- [x] Add Blog link to navigation (default nav + footer) ✅
+- [x] Configure `cms.emwraps.net` domain in Coolify ✅
+- [x] Update `VITE_CMS_URL` for production deploy ✅
+- [x] Create initial blog post (Ferrari SF90 XX PPF, 3 images uploaded to S3) ✅
+- [x] Migrate gallery/project data to CMS (15 projects, 24 images, 15 blog posts) ✅
+- [x] SEO optimization — Payload SEO plugin enhanced, all posts/projects have meta fields, BlogPosting schema ✅
+- [ ] Add team member profiles with photos
+- [ ] Add active promotions
+
+> [!NOTE]
+> **Blog Pipeline Fixes (2026-03-02):**
+> - Lexical `block` nodes → `upload` nodes (Payload doesn't register BlocksFeature by default)
+> - Added `MutationObserver` to `useScrollAnimation.js` for dynamically loaded CMS content
+> - Added `normalizeUrl()` to `cms.js` media helpers (fixes port mismatch between CMS SERVER_URL and frontend)
+> - Production: `NEXT_PUBLIC_SERVER_URL` must be `https://cms.emwraps.net`, `VITE_CMS_URL` must be set as build var in Coolify
+> - Payload `_status: 'published'` required in addition to custom `status: 'published'` field
+
+> [!NOTE]
+> **SEO Implementation (2026-03-02):**
+> - Payload SEO plugin: `tabbedUI`, per-collection URL generation (posts→/blog/, projects→/portfolio/, services→/slug), `generateImage` from featured images
+> - Frontend `BlogPost.jsx`: Uses CMS `post.meta.title/description/image`, full `BlogPosting` JSON-LD schema, `BreadcrumbList` schema
+> - `SEOHead.jsx`: Article-specific OG tags (`article:publisher`, `article:author`), `og:image:width/height`, `twitter:site`
+> - GEO tags: `geo.region=US-WA`, `geo.position=47.5762;-122.3227`, `geo.placename=Seattle, Washington`, `ICBM`
+> - All 16 posts + 15 projects have optimized `meta.title`, `meta.description`, `meta.image` fields
+
+### ✅ Phase 3: Ticket System (NEARLY COMPLETE)
+
+**App:** `emwraps-tickets` repo → `tickets.emwraps.net` (standalone internal tool behind Supabase Auth)
+**Stack:** React 19 + Vite + Vanilla CSS + Zustand + Supabase (Auth, DB, Realtime)
+**Database:** 10 tables created in Supabase `public` schema via migration
+
+#### Database Groups (created tables)
+| Group | Tables |
+|-------|--------|
+| People | `profiles` (auto-created from auth.users) |
+| Customers | `customers`, `vehicles` |
+| Tickets | `tickets`, `ticket_workers`, `ticket_materials` |
+| Inventory | `products`, `serial_numbers` |
+| Services | `service_structure` (JSONB tree, seeded) |
+| Bookings | `bookings` (from frontend form) |
+
+#### Feature Modules (Built)
+Dashboard · Ticket List · Ticket Create · Ticket Detail (with print) · Customers · Inventory · Workers · Schedule · Settings · Login
+
+#### 5 User Roles
+Admin (full) · Manager (near-full) · Worker (own tickets) · Staff (view-only) · Front Desk (intake)
+
+#### Implementation Sub-phases
+- [x] **3.1 Foundation**: Vite + React 19 scaffold, auth, sidebar layout, design system ✅
+- [x] **3.2 Core**: Dashboard, tickets CRUD (list, create, detail, edit) ✅
+- [x] **3.3 Customers & Vehicles**: Customer list, customer detail with vehicles ✅
+- [x] **3.4 Workers**: Worker management with status selectors (active/busy/break/off) ✅
+- [x] **3.5 Inventory**: Products + serial numbers tracking with stat cards ✅
+- [x] **3.6 Schedule**: Calendar view with month navigation + day detail sidebar ✅
+- [x] **3.DB Database**: Full migration — 10 tables, RLS, indexes, auto-profile trigger, seed ✅
+- [x] **3.7 Print**: Invoice + work order preview modal with native browser print ✅
+- [x] **3.8 Realtime**: Live ticket updates via Supabase Realtime channels + toast notifications ✅
+- [ ] **3.9 Deploy**: Deploy to Coolify at `tickets.emwraps.net`
+
+### ✅ Phase 4: Unification (COMPLETE)
+- [x] Frontend reads FAQs from Payload CMS instead of hardcoded ✅
+- [x] Frontend reads testimonials from Payload CMS instead of hardcoded ✅
+- [x] Ticket app reads service catalog from CMS (CMS → Supabase → fallback cascade) ✅
+- [x] Ticket app CMS client created (`src/lib/cms.js`) ✅
+- [x] Booking form auto-creates customer + vehicle + ticket ✅
+- [x] Booking service dropdown loads from CMS dynamically ✅
+- [x] CMS CORS updated for `tickets.emwraps.net` + comma-separated parsing ✅
+- [x] Frontend reads gallery/projects from Payload CMS (with hardcoded fallback) ✅
+- [x] Homepage reads featured projects from CMS (Showcase component) ✅
+- [x] Blog posts link to portfolio projects (Related Projects section) ✅
+- [x] Customer portal — email lookup for booking status + ticket history (`/portal`) ✅
+
+---
+
+## Business Information
+
+| Field | Value |
+|-------|-------|
+| **Business Name** | EMWRAPS |
+| **Domain** | emwraps.net |
+| **Address** | 1900 Airport Way S #103, Seattle, WA 98134 |
+| **Phone** | (206) 383-5328 |
+| **Email** | emwraps.net@gmail.com |
+| **Hours** | Mon-Fri 9AM-6PM, Sat 10AM-4PM |
+| **Google Rating** | 4.8★ (37 reviews) |
+| **Instagram** | @emwraps |
+| **TikTok** | @emwraps |
+| **Facebook** | /emwraps |
+| **YouTube** | @emwraps |
+| **GitHub** | thisisethan0327 |
