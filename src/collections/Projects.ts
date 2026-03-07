@@ -174,5 +174,24 @@ export const Projects: CollectionConfig = {
                 description: 'Supabase customer UUID — links to shared customers table in ticket system',
             },
         },
+        {
+            name: 'ticketRef',
+            type: 'text',
+            admin: {
+                description: 'Supabase ticket UUID — links to tickets table (auto-set when created from ticket system)',
+            },
+        },
+        {
+            name: 'source',
+            type: 'select',
+            defaultValue: 'manual',
+            options: [
+                { label: 'Manual', value: 'manual' },
+                { label: 'Ticket System', value: 'ticket-system' },
+            ],
+            admin: {
+                description: 'How this project was created',
+            },
+        },
     ],
 }
